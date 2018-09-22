@@ -208,6 +208,36 @@ func TestWriteParagraph(t *testing.T) {
 	})
 }
 
-// func TestWrite(t *testing.T) {
-// 	t.Skip("TODO: passes buffer directly to underlying writer? or to line buffer?")
-// }
+func TestWrite(t *testing.T) {
+	emit := func(t *testing.T, width int, prefix string, s string) string {
+		bb := new(bytes.Buffer)
+
+		lw, err := golinewrap.New(bb, width, prefix)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		_, err = lw.Write([]byte(s))
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		return string(bb.Bytes())
+	}
+
+	t.Run("without trailing newline", func(t *testing.T) {
+		got := emit(t, 13, ">", "One two three four five six seven eight nine ten.\nOne two three four five six seven eight nine ten.\nOne two three four five six seven eight nine ten.")
+		want := ">One two three\n>four five six\n>seven eight\n>nine ten.\n>\n>One two three\n>four five six\n>seven eight\n>nine ten.\n>\n>One two three\n>four five six\n>seven eight\n>nine ten.\n"
+		if got != want {
+			t.Errorf("\nGOT:\n    %q\nWANT:\n    %q", got, want)
+		}
+	})
+
+	t.Run("with trailing newline", func(t *testing.T) {
+		got := emit(t, 13, ">", "One two three four five six seven eight nine ten.\nOne two three four five six seven eight nine ten.\nOne two three four five six seven eight nine ten.\n")
+		want := ">One two three\n>four five six\n>seven eight\n>nine ten.\n>\n>One two three\n>four five six\n>seven eight\n>nine ten.\n>\n>One two three\n>four five six\n>seven eight\n>nine ten.\n>\n>\n"
+		if got != want {
+			t.Errorf("\nGOT:\n    %q\nWANT:\n    %q", got, want)
+		}
+	})
+}

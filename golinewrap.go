@@ -106,6 +106,31 @@ func (ww *Writer) writePrefix() error {
 	return err
 }
 
+// Write writes buf to the underlying io.Writer. It converts the input to a
+// string, splits on newline, and emits each line as a paragraph.
+func (ww *Writer) Write(buf []byte) (int, error) {
+	var tw int
+	var err error
+
+	pp := strings.Split(string(buf), "\n")
+	ifp := len(pp) - 1
+
+	for i, p := range pp {
+		nw, err := ww.WriteParagraph(p)
+		tw += nw
+		if err != nil {
+			return tw, err
+		}
+
+		if i < ifp {
+			nw, err = ww.newline()
+			tw += nw
+		}
+	}
+
+	return tw, err
+}
+
 // WriteParagraph writes p to the underlying io.Writer, wrapping lines as
 // necessary to prevent line lengths from exceeding the pre-configured width.
 func (ww *Writer) WriteParagraph(p string) (int, error) {
@@ -131,6 +156,31 @@ func (ww *Writer) WriteParagraph(p string) (int, error) {
 	// Do not need to flush again after newline, because we do not want the next
 	// prefix to be flushed yet.
 	return nw, err
+}
+
+// WriteRune writes r to the underlying io.Writer, wrapping lines as necessary
+// to prevent line lengths from exceeding the pre-configured width.
+func (ww *Writer) WriteRune(r rune) (int, error) {
+	var err error
+	var tw int
+
+	debug("WriteRune(%q): %q; %d\n", r, string(ww.lb.Bytes()), ww.remaining)
+
+	if ww.remaining < 2 {
+		// Not enough room for r and a newline.
+		if tw, err = ww.newline(); err != nil {
+			return tw, err
+		}
+	}
+
+	if _, err := ww.lb.WriteRune(r); err != nil {
+		return tw, err
+	}
+	ww.remaining--
+
+	nw, err := ww.flush()
+	tw += nw
+	return tw, err
 }
 
 // WriteWord writes w to the underlying io.Writer, wrapping lines as necessary
@@ -183,30 +233,5 @@ func (ww *Writer) writeWord(w string) (int, error) {
 	}
 	ww.remaining -= rc
 
-	return tw, err
-}
-
-// WriteRune writes r to the underlying io.Writer, wrapping lines as necessary
-// to prevent line lengths from exceeding the pre-configured width.
-func (ww *Writer) WriteRune(r rune) (int, error) {
-	var err error
-	var tw int
-
-	debug("WriteRune(%q): %q; %d\n", r, string(ww.lb.Bytes()), ww.remaining)
-
-	if ww.remaining < 2 {
-		// Not enough room for r and a newline.
-		if tw, err = ww.newline(); err != nil {
-			return tw, err
-		}
-	}
-
-	if _, err := ww.lb.WriteRune(r); err != nil {
-		return tw, err
-	}
-	ww.remaining--
-
-	nw, err := ww.flush()
-	tw += nw
 	return tw, err
 }
