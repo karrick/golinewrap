@@ -9,13 +9,6 @@ import (
 	"unicode/utf8"
 )
 
-func debug(format string, a ...interface{}) (int, error) {
-	if true {
-		return 0, nil
-	}
-	return fmt.Fprintf(os.Stderr, format, a...)
-}
-
 // Writer is a structure that writes to the underlying io.Writer, but forces
 // line wrapping at the specified width.
 type Writer struct {
@@ -45,6 +38,7 @@ func New(w io.Writer, width int, prefix string) (*Writer, error) {
 		lb:            bytes.NewBuffer(make([]byte, 0, width+1)),
 		max:           width,
 		prefixColumns: prefixColumns,
+		remaining:     width,
 	}
 
 	if prefixColumns > 0 {
@@ -53,7 +47,7 @@ func New(w io.Writer, width int, prefix string) (*Writer, error) {
 			return nil, err
 		}
 		ww.prefix = prefix
-		ww.remaining = ww.max - ww.prefixColumns
+		ww.remaining -= ww.prefixColumns
 	}
 
 	return ww, nil
@@ -75,6 +69,11 @@ func (ww *Writer) flush() (int, error) {
 // because this library is line based.
 func (ww *Writer) newline() (int, error) {
 	debug("newline\n")
+
+	b := ww.lb.Bytes()
+	if l := len(b); l > 0 && b[l-1] == ' ' {
+		ww.lb.Truncate(l - 1) // remove final space character from line buffer.
+	}
 
 	if _, err := ww.lb.WriteRune('\n'); err != nil {
 		return 0, err
@@ -113,18 +112,12 @@ func (ww *Writer) Write(buf []byte) (int, error) {
 	var err error
 
 	pp := strings.Split(string(buf), "\n")
-	ifp := len(pp) - 1
 
-	for i, p := range pp {
+	for _, p := range pp {
 		nw, err := ww.WriteParagraph(p)
 		tw += nw
 		if err != nil {
 			return tw, err
-		}
-
-		if i < ifp {
-			nw, err = ww.newline()
-			tw += nw
 		}
 	}
 
@@ -144,6 +137,12 @@ func (ww *Writer) WriteParagraph(p string) (int, error) {
 		if err != nil {
 			return tw, err
 		}
+
+		_, err = ww.lb.WriteRune(' ')
+		ww.remaining--
+		if err != nil {
+			return tw, err
+		}
 	}
 
 	// All words for this paragraph have been written. Write newline to buffer
@@ -153,9 +152,16 @@ func (ww *Writer) WriteParagraph(p string) (int, error) {
 	nw, err := ww.newline()
 	tw += nw
 
+	if err != nil {
+		return tw, err
+	}
+
+	nw, err = ww.newline()
+	tw += nw
+
 	// Do not need to flush again after newline, because we do not want the next
 	// prefix to be flushed yet.
-	return nw, err
+	return tw, err
 }
 
 // WriteRune writes r to the underlying io.Writer, wrapping lines as necessary
@@ -166,21 +172,27 @@ func (ww *Writer) WriteRune(r rune) (int, error) {
 
 	debug("WriteRune(%q): %q; %d\n", r, string(ww.lb.Bytes()), ww.remaining)
 
-	if ww.remaining < 2 {
-		// Not enough room for r and a newline.
-		if tw, err = ww.newline(); err != nil {
+	switch r {
+	case '\n':
+		return ww.newline()
+
+	default:
+		if ww.remaining < 2 {
+			// Not enough room for r and a newline.
+			if tw, err = ww.newline(); err != nil {
+				return tw, err
+			}
+		}
+
+		if _, err := ww.lb.WriteRune(r); err != nil {
 			return tw, err
 		}
-	}
+		ww.remaining--
 
-	if _, err := ww.lb.WriteRune(r); err != nil {
+		nw, err := ww.flush()
+		tw += nw
 		return tw, err
 	}
-	ww.remaining--
-
-	nw, err := ww.flush()
-	tw += nw
-	return tw, err
 }
 
 // WriteWord writes w to the underlying io.Writer, wrapping lines as necessary
@@ -191,13 +203,15 @@ func (ww *Writer) WriteWord(w string) (int, error) {
 		return tw, err
 	}
 
-	nw, err2 := ww.flush()
+	nw, err := ww.flush()
 	tw += nw
 
-	if err == nil {
-		err = err2
+	if err != nil {
+		return tw, err
 	}
 
+	_, err = ww.lb.WriteRune(' ')
+	ww.remaining--
 	return tw, err
 }
 
@@ -206,32 +220,29 @@ func (ww *Writer) writeWord(w string) (int, error) {
 	var tw int // total written
 
 	// Number of columns this word occupies, plus a column for the final space
-	// or newline.
-	rc := utf8.RuneCountInString(w)
+	// or newline character.
+	rc := utf8.RuneCountInString(w) + 1
 
-	debug("WriteWord(%q); %q; %d\n", w, string(ww.lb.Bytes()), ww.remaining)
+	debug("writeWord(%q); rc: %d; %q (remaining: %d)\n", w, rc, string(ww.lb.Bytes()), ww.remaining)
 
+	// When not enough room for w and a space.
 	if ww.remaining < rc {
-		// Not enough room for w and a newline.
 		if tw, err = ww.newline(); err != nil {
 			return tw, err
 		}
 	}
 
-	if ww.max-ww.remaining != ww.prefixColumns {
-		debug("not the first word on line\n")
-		// Write a space before this word if it's not the first thing after the
-		// prefix.
-		if _, err = ww.lb.WriteRune(' '); err != nil {
-			return tw, err
-		}
-		ww.remaining--
-	}
-
 	if _, err = ww.lb.WriteString(w); err != nil {
 		return tw, err
 	}
-	ww.remaining -= rc
+	ww.remaining -= (rc - 1)
 
 	return tw, err
+}
+
+func debug(format string, a ...interface{}) (int, error) {
+	if true {
+		return 0, nil
+	}
+	return fmt.Fprintf(os.Stderr, format, a...)
 }
