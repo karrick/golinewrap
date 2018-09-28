@@ -48,6 +48,8 @@ func main() {
     some other methods which make it more natural to use when formatting
     paragraphs of information.`)
 
+	lw.Printf("One such handy method is %q, formatting its arguments using %q, then writing the resulting string to the underlying io.Writer.", "Printf", "fmt.Sprintf")
+
 	lw.WriteParagraph(`The one I tend to use most often is
     golinewrap.WriteParagraph, which accepts a paragraph of text, then emits
     that paragraph to the underlying io.Writer. Calling WriteParagraph multiple
