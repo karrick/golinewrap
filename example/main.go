@@ -1,21 +1,3 @@
-# golinewrap
-
-A Go library for line wrapping when writing to an io.Writer.
-
-[![GoDoc](https://godoc.org/github.com/karrick/golinewrap?status.svg)](https://godoc.org/github.com/karrick/golinewrap)
-
-## Description
-
-Writes the to the underlying io.Writer, wrapping lines as necessary to prevent
-line lengths from exceeding the pre-configured width.
-
-This library does not split words to keep them within the specified line length,
-but rather emits them on a line of their own. A future version of this library
-may address this shortcoming.
-
-## Examples
-
-```Go
 package main
 
 import (
@@ -74,4 +56,3 @@ func main() {
     single word or a single rune will trigger a newline only once a line is
     completed in terms of its length.`)
 }
-```
