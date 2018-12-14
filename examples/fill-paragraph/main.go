@@ -11,7 +11,6 @@ import (
 	"github.com/karrick/golf"
 	"github.com/karrick/golinewrap"
 	"github.com/karrick/gorill"
-	"github.com/karrick/gows"
 )
 
 func main() {
@@ -19,23 +18,12 @@ func main() {
 	optWidth := golf.IntP('w', "width", 0, "width of output; 0 implies use tty width")
 	golf.Parse()
 
-	if *optWidth == 0 {
-		// Ignore error below. If cannot get window size, use 80.
-		if *optWidth, _, _ = gows.GetWinSize(); *optWidth == 0 {
-			*optWidth = 80
-		}
-	}
-
 	if *optHelp {
-		// NOTE: When line wrapping based on terminal width, remember to save one
-		// column for the newline character, or your output will be stuttered.
-		lw, err := golinewrap.New(os.Stderr, *optWidth-1, "")
+		// For help text, just line wrap to 79 characters.
+		lw, err := golinewrap.New(os.Stderr, 79, "")
 		if err != nil {
-			// Try again with 79 columns.
-			if lw, err = golinewrap.New(os.Stderr, 79, ""); err != nil {
-				fmt.Fprintf(os.Stderr, "%s\n", err)
-				os.Exit(1)
-			}
+			fmt.Fprintf(os.Stderr, "%s\n", err)
+			os.Exit(1)
 		}
 		lw.Printf("%s", filepath.Base(os.Args[0]))
 		lw.Printf("Reflow paragraphs to specified line width.")
