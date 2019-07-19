@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"io"
-	"os"
 	"strings"
 	"unicode/utf8"
 )
@@ -244,11 +243,4 @@ func (ww *Writer) writeWord(w string) (int, error) {
 	ww.remaining -= (rc - 1)
 
 	return tw, err
-}
-
-func debug(format string, a ...interface{}) (int, error) {
-	if true {
-		return 0, nil
-	}
-	return fmt.Fprintf(os.Stderr, format, a...)
 }
